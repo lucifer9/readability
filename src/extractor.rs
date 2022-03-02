@@ -2,12 +2,12 @@ use std::io::Read;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::cell::Cell;
-use markup5ever_rcdom::{RcDom, SerializableHandle};
 use html5ever::{parse_document, serialize};
 use html5ever::tendril::stream::TendrilSink;
 use std::default::Default;
 #[cfg(feature = "reqwest")]
 use std::time::Duration;
+use markup5ever_arcdom::{ArcDom, SerializableHandle};
 #[cfg(feature = "reqwest")]
 use reqwest;
 use url::Url;
@@ -39,7 +39,7 @@ pub fn scrape(url: &str) -> Result<Product, Error> {
 }
 
 pub fn extract<R>(input: &mut R, url: &Url) -> Result<Product, Error> where R: Read {
-    let mut dom = parse_document(RcDom::default(), Default::default())
+    let mut dom = parse_document(ArcDom::default(), Default::default())
         .from_utf8()
         .read_from(input)?;
     let mut title      = String::new();
@@ -73,5 +73,5 @@ pub fn extract<R>(input: &mut R, url: &Url) -> Result<Product, Error> where R: R
     let mut text: String = String::new();
     dom::extract_text_ex(node.clone(), &mut text, true);
     dom::fix_p(&mut text);
-    Ok(Product { title: title, content: content, text: text })
+    Ok(Product { title, content, text })
 }
