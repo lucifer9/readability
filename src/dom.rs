@@ -116,6 +116,42 @@ pub fn extract_text(handle: Handle, text: &mut String, deep: bool) {
     }
 }
 
+pub fn extract_text_ex(handle: Handle, text: &mut String, deep: bool) {
+    for child in handle.children.borrow().iter() {
+        let c = child.clone();
+        match c.data {
+            Text { ref contents } => {
+                if contents.borrow().trim().len() > 0 {
+                    text.push_str(contents.borrow().trim());
+                }
+            },
+            Element { .. } => {
+                if deep {
+                    text.push_str("<p>");
+                    extract_text_ex(child.clone(), text, deep);
+                    text.push_str("</p>");
+                }
+            },
+            _ => ()
+        }
+    }
+}
+
+pub fn fix_p(text: &mut String){
+    let original_text = text.clone();
+    let s= original_text.split("<p>").collect::<Vec<&str>>();
+    println!("s: {:#?}", s);
+    text.clear();
+    for s1 in s {
+        if s1!="</p>" {
+            if s1.ends_with("</p>") {
+                text.push_str("<p>");
+            }
+            text.push_str(s1);
+        }
+    }
+}
+
 pub fn text_len(handle: Handle) -> usize {
     let mut len = 0;
     for child in handle.children.borrow().iter() {

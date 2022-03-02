@@ -71,6 +71,7 @@ pub fn extract<R>(input: &mut R, url: &Url) -> Result<Product, Error> where R: R
     let content = String::from_utf8(bytes).unwrap_or_default();
 
     let mut text: String = String::new();
-    dom::extract_text(node.clone(), &mut text, true);
+    dom::extract_text_ex(node.clone(), &mut text, true);
+    dom::fix_p(&mut text);
     Ok(Product { title: title, content: content, text: text })
 }
