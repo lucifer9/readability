@@ -147,6 +147,7 @@ pub fn fix_p(text: &mut String) {
     let original_text = text.clone();
     let s = original_text.split("<p>").collect::<Vec<&str>>();
     text.clear();
+    text.push_str("<p>");
     for s1 in s {
         if s1 != "</p>" {
             if s1.ends_with("</p>") {
