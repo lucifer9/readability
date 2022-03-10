@@ -1,28 +1,30 @@
 use html5ever::tendril::StrTendril;
 use html5ever::Attribute;
+use markup5ever_arcdom::NodeData::{Element, Text};
+use markup5ever_arcdom::{Handle, Node};
 use std::str::FromStr;
 use std::sync::Arc;
-use markup5ever_arcdom::{Handle, Node};
-use markup5ever_arcdom::NodeData::{Element, Text};
 
 pub fn get_tag_name(handle: Handle) -> Option<String> {
     match handle.data {
-        Element { ref name,  .. } => Some(name.local.as_ref().to_lowercase().to_string()),
+        Element { ref name, .. } => Some(name.local.as_ref().to_lowercase().to_string()),
         _ => None,
     }
 }
 
 pub fn get_attr<'a>(name: &str, handle: Handle) -> Option<String> {
     match handle.data {
-        Element { name: _, ref attrs, .. } => attr(name, &attrs.borrow()),
-        _                                  => None,
+        Element {
+            name: _, ref attrs, ..
+        } => attr(name, &attrs.borrow()),
+        _ => None,
     }
 }
 
 pub fn attr(attr_name: &str, attrs: &Vec<Attribute>) -> Option<String> {
     for attr in attrs.iter() {
         if attr.name.local.as_ref() == attr_name {
-            return Some(attr.value.to_string())
+            return Some(attr.value.to_string());
         }
     }
     None
@@ -30,17 +32,21 @@ pub fn attr(attr_name: &str, attrs: &Vec<Attribute>) -> Option<String> {
 
 pub fn set_attr(attr_name: &str, value: &str, handle: Handle) {
     match handle.data {
-        Element { name: _, ref attrs, .. } => {
+        Element {
+            name: _, ref attrs, ..
+        } => {
             let attrs = &mut attrs.borrow_mut();
             if let Some(index) = attrs.iter().position(|attr| {
                 let name = attr.name.local.as_ref();
                 name == attr_name
             }) {
                 match StrTendril::from_str(value) {
-                    Ok(value) => attrs[index] = Attribute {
-                        name:  attrs[index].name.clone(),
-                        value,
-                    },
+                    Ok(value) => {
+                        attrs[index] = Attribute {
+                            name: attrs[index].name.clone(),
+                            value,
+                        }
+                    }
                     Err(_) => (),
                 }
             }
@@ -64,21 +70,21 @@ pub fn is_empty(handle: Handle) -> bool {
         match c.data {
             Text { ref contents } => {
                 if contents.borrow().trim().len() > 0 {
-                    return false
+                    return false;
                 }
-            },
+            }
             Element { ref name, .. } => {
                 let tag_name = name.local.as_ref();
                 match tag_name.to_lowercase().as_ref() {
                     "li" | "dt" | "dd" | "p" | "div" => {
                         if !is_empty(child.clone()) {
-                            return false
+                            return false;
                         }
-                    },
+                    }
                     _ => return false,
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
     match get_tag_name(handle.clone()).unwrap_or_default().as_ref() {
@@ -89,14 +95,14 @@ pub fn is_empty(handle: Handle) -> bool {
 
 pub fn has_link(handle: Handle) -> bool {
     if "a" == &get_tag_name(handle.clone()).unwrap_or_default() {
-        return true
+        return true;
     }
     for child in handle.children.borrow().iter() {
         if has_link(child.clone()) {
-            return true
+            return true;
         }
     }
-    return false
+    return false;
 }
 
 pub fn extract_text(handle: Handle, text: &mut String, deep: bool) {
@@ -105,13 +111,13 @@ pub fn extract_text(handle: Handle, text: &mut String, deep: bool) {
         match c.data {
             Text { ref contents } => {
                 text.push_str(contents.borrow().trim());
-            },
+            }
             Element { .. } => {
                 if deep {
                     extract_text(child.clone(), text, deep);
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 }
@@ -124,26 +130,25 @@ pub fn extract_text_ex(handle: Handle, text: &mut String, deep: bool) {
                 if contents.borrow().trim().len() > 0 {
                     text.push_str(contents.borrow().trim());
                 }
-            },
+            }
             Element { .. } => {
                 if deep {
                     text.push_str("<p>");
                     extract_text_ex(child.clone(), text, deep);
                     text.push_str("</p>");
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 }
 
-pub fn fix_p(text: &mut String){
+pub fn fix_p(text: &mut String) {
     let original_text = text.clone();
-    let s= original_text.split("<p>").collect::<Vec<&str>>();
-    println!("s: {:#?}", s);
+    let s = original_text.split("<p>").collect::<Vec<&str>>();
     text.clear();
     for s1 in s {
-        if s1!="</p>" {
+        if s1 != "</p>" {
             if s1.ends_with("</p>") {
                 text.push_str("<p>");
             }
@@ -159,11 +164,11 @@ pub fn text_len(handle: Handle) -> usize {
         match c.data {
             Text { ref contents } => {
                 len += contents.borrow().trim().chars().count();
-            },
+            }
             Element { .. } => {
                 len += text_len(child.clone());
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
     len
@@ -179,8 +184,8 @@ pub fn find_node(handle: Handle, tag_name: &str, nodes: &mut Vec<Arc<Node>>) {
                     nodes.push(child.clone());
                 };
                 find_node(child.clone(), tag_name, nodes)
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 }
@@ -189,18 +194,16 @@ pub fn has_nodes(handle: Handle, tag_names: &Vec<&'static str>) -> bool {
     for child in handle.children.borrow().iter() {
         let tag_name: &str = &get_tag_name(child.clone()).unwrap_or_default();
         if tag_names.iter().any(|&n| n == tag_name) {
-            return true
+            return true;
         }
         if match child.clone().data {
-            Element { .. } => {
-                has_nodes(child.clone(), tag_names)
-            },
+            Element { .. } => has_nodes(child.clone(), tag_names),
             _ => false,
         } {
-            return true
+            return true;
         }
     }
-    return false
+    return false;
 }
 
 pub fn text_children_count(handle: Handle) -> usize {
@@ -213,8 +216,8 @@ pub fn text_children_count(handle: Handle) -> usize {
                 if s.trim().len() >= 20 {
                     count += 1
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
     count
