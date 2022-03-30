@@ -13,8 +13,10 @@ categories = []
 regex = "1"
 url = "2"
 html5ever = "^0"
-markup5ever_arcdom = "^0"
 lazy_static = "1"
+tendril = "0.4"
+markup5ever = "^0"
+xml5ever = "^0"
 
 [dependencies.reqwest]
 version = "^0"

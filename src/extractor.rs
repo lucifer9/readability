@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::cell::Cell;
 use html5ever::{parse_document, serialize};
-use html5ever::tendril::stream::TendrilSink;
 use std::default::Default;
 #[cfg(feature = "reqwest")]
 use std::time::Duration;
@@ -15,6 +14,7 @@ use error::Error;
 use dom;
 use scorer;
 use scorer::Candidate;
+use tendril::TendrilSink;
 
 #[derive(Debug)]
 pub struct Product {
