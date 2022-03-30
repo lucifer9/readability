@@ -32,16 +32,15 @@ pub fn scrape(url: &str) -> Result<Product, Error> {
         .send()?;
     if res.status().is_success() {
         let url = Url::parse(url)?;
-        extract(&mut res, &url)
+        let dom=get_dom(&mut res)?;
+        extract(dom, &url)
     } else {
         Err(Error::Unexpected)
     }
 }
 
-pub fn extract<R>(input: &mut R, url: &Url) -> Result<Product, Error> where R: Read {
-    let mut dom = parse_document(ArcDom::default(), Default::default())
-        .from_utf8()
-        .read_from(input)?;
+pub fn extract(input: ArcDom, url: &Url) -> Result<Product, Error> {
+    let mut dom = input;
     let mut title      = String::new();
     let mut candidates = BTreeMap::new();
     let mut nodes      = BTreeMap::new();
@@ -74,4 +73,11 @@ pub fn extract<R>(input: &mut R, url: &Url) -> Result<Product, Error> where R: R
     dom::extract_text_ex(node.clone(), &mut text, true);
     dom::fix_p(&mut text);
     Ok(Product { title, content, text })
+}
+
+pub fn get_dom<R>(input: &mut R) -> Result<ArcDom, Error>  where R: Read{
+    let dom = parse_document(ArcDom::default(), Default::default())
+        .from_utf8()
+        .read_from(input)?;
+    Ok(dom)
 }
