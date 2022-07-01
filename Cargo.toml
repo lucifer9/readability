@@ -23,6 +23,3 @@ version = "^0"
 optional = true
 features = ["blocking", "rustls-tls"]
 default-features = false
-
-[features]
-default = ["reqwest"]
