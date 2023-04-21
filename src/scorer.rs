@@ -10,22 +10,21 @@ use std::path::Path;
 use std::sync::Arc;
 use url::Url;
 
-pub static PUNCTUATIONS_REGEX: &'static str = r"([、。，．！？]|\.[^A-Za-z0-9]|,[^0-9]|!|\?)";
-pub static UNLIKELY_CANDIDATES: &'static str =
-    "combx|comment|community|disqus|extra|foot|header|menu\
+pub static PUNCTUATIONS_REGEX: &str = r"([、。，．！？]|\.[^A-Za-z0-9]|,[^0-9]|!|\?)";
+pub static UNLIKELY_CANDIDATES: &str = "combx|comment|community|disqus|extra|foot|header|menu\
      |remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate\
      |pagination|pager|popup|tweet|twitter\
      |ssba";
-pub static LIKELY_CANDIDATES: &'static str = "and|article|body|column|main|shadow\
+pub static LIKELY_CANDIDATES: &str = "and|article|body|column|main|shadow\
                                               |content|hentry";
-pub static POSITIVE_CANDIDATES: &'static str = "article|body|content|entry|hentry|main|page\
+pub static POSITIVE_CANDIDATES: &str = "article|body|content|entry|hentry|main|page\
      |pagination|post|text|blog|story";
-pub static NEGATIVE_CANDIDATES: &'static str = "combx|comment|com|contact|foot|footer|footnote\
+pub static NEGATIVE_CANDIDATES: &str = "combx|comment|com|contact|foot|footer|footnote\
      |masthead|media|meta|outbrain|promo|related\
      |scroll|shoutbox|sidebar|sponsor|shopping\
      |tags|tool|widget|form|textfield\
      |uiScale|hidden";
-static BLOCK_CHILD_TAGS: [&'static str; 10] = [
+static BLOCK_CHILD_TAGS: [&str; 10] = [
     "a",
     "blockquote",
     "dl",
@@ -57,9 +56,8 @@ pub fn fix_img_path(handle: Handle, url: &Url) -> bool {
     }
     let s = src.unwrap();
     if !s.starts_with("//") && !s.starts_with("http://") && !s.starts_with("https://") {
-        match url.join(&s) {
-            Ok(new_url) => dom::set_attr("src", new_url.as_str(), handle),
-            Err(_) => (),
+        if let Ok(new_url) = url.join(&s) {
+            dom::set_attr("src", new_url.as_str(), handle)
         }
     }
     true
@@ -72,9 +70,8 @@ pub fn fix_anchor_path(handle: Handle, url: &Url) -> bool {
     }
     let s = src.unwrap();
     if !s.starts_with("//") && !s.starts_with("http://") && !s.starts_with("https://") {
-        match url.join(&s) {
-            Ok(new_url) => dom::set_attr("href", new_url.as_str(), handle),
-            Err(_) => (),
+        if let Ok(new_url) = url.join(&s) {
+            dom::set_attr("href", new_url.as_str(), handle)
         }
     }
     true
@@ -87,7 +84,7 @@ pub fn get_link_density(handle: Handle) -> f32 {
     }
     let mut link_length = 0.0;
     let mut links: Vec<Arc<Node>> = vec![];
-    dom::find_node(handle.clone(), "a", &mut links);
+    dom::find_node(handle, "a", &mut links);
     for link in links.iter() {
         link_length += dom::text_len(link.clone()) as f32;
     }
@@ -102,10 +99,9 @@ pub fn is_candidate(handle: Handle) -> bool {
     let n: &str = &dom::get_tag_name(handle.clone()).unwrap_or_default();
     match n {
         "p" => true,
-        "div" | "article" | "center" | "section" => !dom::has_nodes(
-            handle.clone(),
-            &BLOCK_CHILD_TAGS.iter().map(|t| *t).collect(),
-        ),
+        "div" | "article" | "center" | "section" => {
+            !dom::has_nodes(handle, &BLOCK_CHILD_TAGS.to_vec())
+        }
         _ => false,
     }
 }
@@ -120,71 +116,65 @@ pub fn init_content_score(handle: Handle) -> f32 {
         "th" => 5.0,
         _ => 0.0,
     };
-    score + get_class_weight(handle.clone())
+    score + get_class_weight(handle)
 }
 
 pub fn calc_content_score(handle: Handle) -> f32 {
     let mut score: f32 = 1.0;
     let mut text = String::new();
-    dom::extract_text(handle.clone(), &mut text, true);
+    dom::extract_text(handle, &mut text, true);
     let mat = PUNCTUATIONS.find_iter(&text);
     score += mat.count() as f32;
     score += f32::min(f32::floor(text.chars().count() as f32 / 100.0), 3.0);
-    return score;
+    score
 }
 
 pub fn get_class_weight(handle: Handle) -> f32 {
     let mut weight: f32 = 0.0;
-    match handle.data {
-        Element {
-            name: _, ref attrs, ..
-        } => {
-            for name in ["id", "class"].iter() {
-                if let Some(val) = dom::attr(name, &attrs.borrow()) {
-                    if POSITIVE.is_match(&val) {
-                        weight += 25.0
-                    };
-                    if NEGATIVE.is_match(&val) {
-                        weight -= 25.0
-                    }
+    if let Element {
+        name: _, ref attrs, ..
+    } = handle.data
+    {
+        for name in ["id", "class"].iter() {
+            if let Some(val) = dom::attr(name, &attrs.borrow()) {
+                if POSITIVE.is_match(&val) {
+                    weight += 25.0
+                };
+                if NEGATIVE.is_match(&val) {
+                    weight -= 25.0
                 }
             }
         }
-        _ => (),
-    };
+    }
     weight
 }
 
-pub fn preprocess(mut dom: &mut ArcDom, handle: Handle, mut title: &mut String) -> bool {
-    match handle.clone().data {
-        Element {
-            ref name,
-            ref attrs,
-            ..
-        } => {
-            let tag_name = name.local.as_ref();
-            match tag_name.to_lowercase().as_ref() {
-                "script" | "link" | "style" => return true,
-                "title" => dom::extract_text(handle.clone(), &mut title, true),
-                _ => (),
-            }
-            for name in ["id", "class"].iter() {
-                if let Some(val) = dom::attr(name, &attrs.borrow()) {
-                    if tag_name != "body" && UNLIKELY.is_match(&val) {
-                        if !LIKELY.is_match(&val) {
-                            return true;
-                        }
-                    }
+pub fn preprocess(dom: &mut ArcDom, handle: Handle, title: &mut String) -> bool {
+    if let Element {
+        ref name,
+        ref attrs,
+        ..
+    } = handle.data
+    {
+        let tag_name = name.local.as_ref();
+        match tag_name.to_lowercase().as_ref() {
+            "script" | "link" | "style" => return true,
+            "title" => dom::extract_text(handle.clone(), title, true),
+            _ => (),
+        }
+        for name in ["id", "class"].iter() {
+            if let Some(val) = dom::attr(name, &attrs.borrow()) {
+                if tag_name != "body" && UNLIKELY.is_match(&val) && !LIKELY.is_match(&val) {
+                    return true;
                 }
             }
         }
-        _ => (),
     }
     let mut useless_nodes = vec![];
     let mut paragraph_nodes = vec![];
     let mut br_count = 0;
     for child in handle.children.borrow().iter() {
-        if preprocess(&mut dom, child.clone(), &mut title) {
+        if preprocess(dom, child.clone(), title) {
             useless_nodes.push(child.clone());
         }
         let c = child.clone();
@@ -199,7 +189,7 @@ pub fn preprocess(mut dom: &mut ArcDom, handle: Handle, mut title: &mut String) 
             }
             Text { ref contents } => {
                 let s = contents.borrow();
-                if br_count >= 2 && s.trim().len() > 0 {
+                if br_count >= 2 && !s.trim().is_empty() {
                     paragraph_nodes.push(child.clone());
                     br_count = 0
                 }
@@ -215,19 +205,16 @@ pub fn preprocess(mut dom: &mut ArcDom, handle: Handle, mut title: &mut String) 
         let p = dom.create_element(name, vec![], ElementFlags::default());
         dom.append_before_sibling(node, NodeOrText::AppendNode(p.clone()));
         dom.remove_from_parent(node);
-        match node.clone().data {
-            Text { ref contents } => {
-                let text = contents.clone().into_inner().clone();
-                dom.append(&p, NodeOrText::AppendText(text))
-            }
-            _ => (),
+        if let Text { ref contents } = node.clone().data {
+            let text = contents.clone().into_inner().clone();
+            dom.append(&p, NodeOrText::AppendText(text))
         }
     }
     false
 }
 
 pub fn find_candidates(
-    mut dom: &mut ArcDom,
+    mut _dom: &mut ArcDom,
     id: &Path,
     handle: Handle,
     candidates: &mut BTreeMap<String, Candidate>,
@@ -284,7 +271,7 @@ pub fn find_candidates(
 
     for (i, child) in handle.children.borrow().iter().enumerate() {
         find_candidates(
-            &mut dom,
+            _dom,
             id.join(i.to_string()).as_path(),
             child.clone(),
             candidates,
@@ -316,7 +303,7 @@ fn find_or_create_candidate<'a>(
 }
 
 pub fn clean(
-    mut dom: &mut ArcDom,
+    dom: &mut ArcDom,
     id: &Path,
     handle: Handle,
     url: &Url,
@@ -328,7 +315,7 @@ pub fn clean(
         Doctype { .. } => (),
         Text { ref contents } => {
             let s = contents.borrow();
-            if s.trim().len() == 0 {
+            if s.trim().is_empty() {
                 useless = true
             }
         }
@@ -349,16 +336,16 @@ pub fn clean(
                 "a" => useless = !fix_anchor_path(handle.clone(), url),
                 _ => (),
             }
-            dom::clean_attr("id", &mut *attrs.borrow_mut());
-            dom::clean_attr("class", &mut *attrs.borrow_mut());
-            dom::clean_attr("style", &mut *attrs.borrow_mut());
+            dom::clean_attr("id", &mut attrs.borrow_mut());
+            dom::clean_attr("class", &mut attrs.borrow_mut());
+            dom::clean_attr("style", &mut attrs.borrow_mut());
         }
         ProcessingInstruction { .. } => unreachable!(),
     }
     let mut useless_nodes = vec![];
     for (i, child) in handle.children.borrow().iter().enumerate() {
         let pid = id.join(i.to_string());
-        if clean(&mut dom, pid.as_path(), child.clone(), url, candidates) {
+        if clean(dom, pid.as_path(), child.clone(), url, candidates) {
             useless_nodes.push(child.clone());
         }
     }
@@ -399,7 +386,7 @@ pub fn is_useless(id: &Path, handle: Handle, candidates: &BTreeMap<String, Candi
     let input_count = input_nodes.len();
     let embed_count = embed_nodes.len();
     let link_density = get_link_density(handle.clone());
-    let content_length = dom::text_len(handle.clone());
+    let content_length = dom::text_len(handle);
     let para_count = text_nodes_len + p_count;
 
     if img_count > para_count + text_nodes_len {
@@ -420,5 +407,5 @@ pub fn is_useless(id: &Path, handle: Handle, candidates: &BTreeMap<String, Candi
     if (embed_count == 1 && content_length < 35) || embed_count > 1 {
         return true;
     }
-    return false;
+    false
 }

@@ -1,36 +1,36 @@
 extern crate readability;
 extern crate url;
 
+use readability::extractor::get_dom;
 use std::fs::File;
 use url::Url;
-use readability::extractor::get_dom;
 
 #[test]
 fn test_extract_title() {
-    assert!(true);
+    //assert!(true);
     let mut file = File::open("./data/title.html").unwrap();
     let url = Url::parse("https://example.com").unwrap();
-    let dom=get_dom(&mut file).unwrap();
+    let dom = get_dom(&mut file).unwrap();
     let product = readability::extractor::extract(dom, &url).unwrap();
     assert_eq!(product.title, "This is title");
 }
 
 #[test]
 fn test_fix_rel_links() {
-    assert!(true);
+    //assert!(true);
     let mut file = File::open("./data/rel.html").unwrap();
     let url = Url::parse("https://example.com").unwrap();
-    let dom=get_dom(&mut file).unwrap();
+    let dom = get_dom(&mut file).unwrap();
     let product = readability::extractor::extract(dom, &url).unwrap();
     assert_eq!(product.content, "<!DOCTYPE html><html><head><title>This is title</title></head><body><p><a href=\"https://example.com/poop\"> poop </a></p></body></html>");
 }
 
 #[test]
 fn test_fix_img_links() {
-    assert!(true);
+    //assert!(true);
     let mut file = File::open("./data/img.html").unwrap();
     let url = Url::parse("https://example.com").unwrap();
-    let dom=get_dom(&mut file).unwrap();
+    let dom = get_dom(&mut file).unwrap();
     let product = readability::extractor::extract(dom, &url).unwrap();
     assert_eq!(product.content, "<!DOCTYPE html><html><head><title>This is title</title></head><body><p><img src=\"https://example.com/poop.png\"></p></body></html>");
 }
