@@ -81,7 +81,7 @@ pub fn extract(input: ArcDom, url: &Url) -> Result<Product, Error> {
 
     let mut text: String = String::new();
     dom::extract_text_ex(node, &mut text, true);
-    dom::fix_p(&mut text);
+    // dom::fix_p(&mut text);
     Ok(Product {
         title,
         content,

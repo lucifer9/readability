@@ -123,14 +123,14 @@ pub fn extract_text_ex(handle: Handle, text: &mut String, deep: bool) {
         match c.data {
             Text { ref contents } => {
                 if !contents.borrow().trim().is_empty() {
+                    text.push_str("<p>");
                     text.push_str(contents.borrow().trim());
+                    text.push_str("</p>");
                 }
             }
             Element { .. } => {
                 if deep {
-                    text.push_str("<p>");
                     extract_text_ex(child.clone(), text, deep);
-                    text.push_str("</p>");
                 }
             }
             _ => (),
@@ -138,20 +138,20 @@ pub fn extract_text_ex(handle: Handle, text: &mut String, deep: bool) {
     }
 }
 
-pub fn fix_p(text: &mut String) {
-    let original_text = text.clone();
-    let s = original_text.split("<p>").collect::<Vec<&str>>();
-    text.clear();
-    text.push_str("<p>");
-    for s1 in s {
-        if s1 != "</p>" {
-            if s1.ends_with("</p>") {
-                text.push_str("<p>");
-            }
-            text.push_str(s1);
-        }
-    }
-}
+// pub fn fix_p(text: &mut String) {
+//     let original_text = text.clone();
+//     let s = original_text.split("<p>").collect::<Vec<&str>>();
+//     text.clear();
+//     text.push_str("<p>");
+//     for s1 in s {
+//         if s1 != "</p>" {
+//             if s1.ends_with("</p>") {
+//                 text.push_str("<p>");
+//             }
+//             text.push_str(s1);
+//         }
+//     }
+// }
 
 pub fn text_len(handle: Handle) -> usize {
     let mut len = 0;
