@@ -1,7 +1,7 @@
 use dom;
 use error::Error;
 use html5ever::{parse_document, serialize};
-use markup5ever_arcdom::{ArcDom, SerializableHandle};
+use markup5ever_rcdom::{RcDom, SerializableHandle};
 #[cfg(feature = "reqwest")]
 use reqwest;
 use scorer;
@@ -38,7 +38,7 @@ pub fn scrape(url: &str) -> Result<Product, Error> {
     }
 }
 
-pub fn extract(input: ArcDom, url: &Url) -> Result<Product, Error> {
+pub fn extract(input: RcDom, url: &Url) -> Result<Product, Error> {
     let mut dom = input;
     let mut title = String::new();
     let mut candidates = BTreeMap::new();
@@ -89,11 +89,11 @@ pub fn extract(input: ArcDom, url: &Url) -> Result<Product, Error> {
     })
 }
 
-pub fn get_dom<R>(input: &mut R) -> Result<ArcDom, Error>
+pub fn get_dom<R>(input: &mut R) -> Result<RcDom, Error>
 where
     R: Read,
 {
-    let dom = parse_document(ArcDom::default(), Default::default())
+    let dom = parse_document(RcDom::default(), Default::default())
         .from_utf8()
         .read_from(input)?;
     Ok(dom)

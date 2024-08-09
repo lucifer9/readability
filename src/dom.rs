@@ -1,9 +1,9 @@
 use html5ever::tendril::StrTendril;
 use html5ever::Attribute;
-use markup5ever_arcdom::NodeData::{Element, Text};
-use markup5ever_arcdom::{Handle, Node};
+use markup5ever_rcdom::NodeData::{Element, Text};
+use markup5ever_rcdom::{Handle, Node};
+use std::rc::Rc;
 use std::str::FromStr;
-use std::sync::Arc;
 
 pub fn get_tag_name(handle: Handle) -> Option<String> {
     match handle.data {
@@ -170,7 +170,7 @@ pub fn text_len(handle: Handle) -> usize {
     len
 }
 
-pub fn find_node(handle: Handle, tag_name: &str, nodes: &mut Vec<Arc<Node>>) {
+pub fn find_node(handle: Handle, tag_name: &str, nodes: &mut Vec<Rc<Node>>) {
     for child in handle.children.borrow().iter() {
         let c = child.clone();
         if let Element { ref name, .. } = c.data {

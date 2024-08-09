@@ -36,14 +36,17 @@
 //! [tree structure]: https://en.wikipedia.org/wiki/Tree_(data_structure)
 //! [dom wiki]: https://en.wikipedia.org/wiki/Document_Object_Model
 
+extern crate markup5ever;
+extern crate tendril;
+
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashSet, VecDeque};
 use std::default::Default;
 use std::fmt;
 use std::io;
-
-use std::sync::{Arc, Weak};
+use std::mem;
+use std::rc::{Rc, Weak};
 
 use tendril::StrTendril;
 
@@ -113,8 +116,8 @@ pub struct Node {
 
 impl Node {
     /// Create a new node from its contents
-    pub fn new(data: NodeData) -> Arc<Self> {
-        Arc::new(Node {
+    pub fn new(data: NodeData) -> Rc<Self> {
+        Rc::new(Node {
             data,
             parent: Cell::new(None),
             children: RefCell::new(Vec::new()),
@@ -124,9 +127,9 @@ impl Node {
 
 impl Drop for Node {
     fn drop(&mut self) {
-        let mut nodes = std::mem::take(&mut *self.children.borrow_mut());
+        let mut nodes = mem::take(&mut *self.children.borrow_mut());
         while let Some(node) = nodes.pop() {
-            let children = std::mem::take(&mut *node.children.borrow_mut());
+            let children = mem::take(&mut *node.children.borrow_mut());
             nodes.extend(children.into_iter());
             if let NodeData::Element {
                 ref template_contents,
@@ -151,14 +154,14 @@ impl fmt::Debug for Node {
 }
 
 /// Reference to a DOM node.
-pub type Handle = Arc<Node>;
+pub type Handle = Rc<Node>;
 
 /// Weak reference to a DOM node, used for parent pointers.
 pub type WeakHandle = Weak<Node>;
 
 /// Append a parentless node to another nodes' children
 fn append(new_parent: &Handle, child: Handle) {
-    let previous_parent = child.parent.replace(Some(Arc::downgrade(new_parent)));
+    let previous_parent = child.parent.replace(Some(Rc::downgrade(new_parent)));
     // Invariant: child cannot have existing parent
     assert!(previous_parent.is_none());
     new_parent.children.borrow_mut().push(child);
@@ -174,7 +177,7 @@ fn get_parent_and_index(target: &Handle) -> Option<(Handle, usize)> {
             .borrow()
             .iter()
             .enumerate()
-            .find(|&(_, child)| Arc::ptr_eq(child, target))
+            .find(|&(_, child)| Rc::ptr_eq(child, target))
         {
             Some((i, _)) => i,
             None => panic!("have parent but couldn't find in parent's children!"),
@@ -203,18 +206,18 @@ fn remove_from_parent(target: &Handle) {
 }
 
 /// The DOM itself; the result of parsing.
-pub struct ArcDom {
+pub struct RcDom {
     /// The `Document` itself.
     pub document: Handle,
 
     /// Errors that occurred during parsing.
-    pub errors: Vec<Cow<'static, str>>,
+    pub errors: RefCell<Vec<Cow<'static, str>>>,
 
     /// The document's quirks mode.
-    pub quirks_mode: QuirksMode,
+    pub quirks_mode: Cell<QuirksMode>,
 }
 
-impl TreeSink for ArcDom {
+impl TreeSink for RcDom {
     type Output = Self;
     fn finish(self) -> Self {
         self
@@ -222,15 +225,15 @@ impl TreeSink for ArcDom {
 
     type Handle = Handle;
 
-    fn parse_error(&mut self, msg: Cow<'static, str>) {
-        self.errors.push(msg);
+    fn parse_error(&self, msg: Cow<'static, str>) {
+        self.errors.borrow_mut().push(msg);
     }
 
-    fn get_document(&mut self) -> Handle {
+    fn get_document(&self) -> Handle {
         self.document.clone()
     }
 
-    fn get_template_contents(&mut self, target: &Handle) -> Handle {
+    fn get_template_contents(&self, target: &Handle) -> Handle {
         if let NodeData::Element {
             ref template_contents,
             ..
@@ -246,12 +249,12 @@ impl TreeSink for ArcDom {
         }
     }
 
-    fn set_quirks_mode(&mut self, mode: QuirksMode) {
-        self.quirks_mode = mode;
+    fn set_quirks_mode(&self, mode: QuirksMode) {
+        self.quirks_mode.set(mode);
     }
 
     fn same_node(&self, x: &Handle, y: &Handle) -> bool {
-        Arc::ptr_eq(x, y)
+        Rc::ptr_eq(x, y)
     }
 
     fn elem_name<'a>(&self, target: &'a Handle) -> ExpandedName<'a> {
@@ -261,12 +264,7 @@ impl TreeSink for ArcDom {
         };
     }
 
-    fn create_element(
-        &mut self,
-        name: QualName,
-        attrs: Vec<Attribute>,
-        flags: ElementFlags,
-    ) -> Handle {
+    fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> Handle {
         Node::new(NodeData::Element {
             name,
             attrs: RefCell::new(attrs),
@@ -279,20 +277,20 @@ impl TreeSink for ArcDom {
         })
     }
 
-    fn create_comment(&mut self, text: StrTendril) -> Handle {
+    fn create_comment(&self, text: StrTendril) -> Handle {
         Node::new(NodeData::Comment { contents: text })
     }
 
-    fn create_pi(&mut self, target: StrTendril, data: StrTendril) -> Handle {
+    fn create_pi(&self, target: StrTendril, data: StrTendril) -> Handle {
         Node::new(NodeData::ProcessingInstruction {
             target,
             contents: data,
         })
     }
 
-    fn append(&mut self, parent: &Handle, child: NodeOrText<Handle>) {
+    fn append(&self, parent: &Handle, child: NodeOrText<Handle>) {
         // Append to an existing Text node if we have one.
-        if let NodeOrText::AppendText(ref text) = child {
+        if let NodeOrText::AppendText(text) = &child {
             if let Some(h) = parent.children.borrow().last() {
                 if append_to_existing_text(h, text) {
                     return;
@@ -311,7 +309,7 @@ impl TreeSink for ArcDom {
         );
     }
 
-    fn append_before_sibling(&mut self, sibling: &Handle, child: NodeOrText<Handle>) {
+    fn append_before_sibling(&self, sibling: &Handle, child: NodeOrText<Handle>) {
         let (parent, i) = get_parent_and_index(sibling)
             .expect("append_before_sibling called on node without parent");
 
@@ -342,12 +340,12 @@ impl TreeSink for ArcDom {
 
         remove_from_parent(&child);
 
-        child.parent.set(Some(Arc::downgrade(&parent)));
+        child.parent.set(Some(Rc::downgrade(&parent)));
         parent.children.borrow_mut().insert(i, child);
     }
 
     fn append_based_on_parent_node(
-        &mut self,
+        &self,
         element: &Self::Handle,
         prev_element: &Self::Handle,
         child: NodeOrText<Self::Handle>,
@@ -364,7 +362,7 @@ impl TreeSink for ArcDom {
     }
 
     fn append_doctype_to_document(
-        &mut self,
+        &self,
         name: StrTendril,
         public_id: StrTendril,
         system_id: StrTendril,
@@ -379,7 +377,7 @@ impl TreeSink for ArcDom {
         );
     }
 
-    fn add_attrs_if_missing(&mut self, target: &Handle, attrs: Vec<Attribute>) {
+    fn add_attrs_if_missing(&self, target: &Handle, attrs: Vec<Attribute>) {
         let mut existing = if let NodeData::Element { ref attrs, .. } = target.data {
             attrs.borrow_mut()
         } else {
@@ -397,21 +395,21 @@ impl TreeSink for ArcDom {
         );
     }
 
-    fn remove_from_parent(&mut self, target: &Handle) {
+    fn remove_from_parent(&self, target: &Handle) {
         remove_from_parent(target);
     }
 
-    fn reparent_children(&mut self, node: &Handle, new_parent: &Handle) {
+    fn reparent_children(&self, node: &Handle, new_parent: &Handle) {
         let mut children = node.children.borrow_mut();
         let mut new_children = new_parent.children.borrow_mut();
         for child in children.iter() {
-            let previous_parent = child.parent.replace(Some(Arc::downgrade(new_parent)));
-            assert!(Arc::ptr_eq(
+            let previous_parent = child.parent.replace(Some(Rc::downgrade(new_parent)));
+            assert!(Rc::ptr_eq(
                 node,
                 &previous_parent.unwrap().upgrade().expect("dangling weak")
             ))
         }
-        new_children.extend(std::mem::take(&mut *children));
+        new_children.extend(mem::take(&mut *children));
     }
 
     fn is_mathml_annotation_xml_integration_point(&self, target: &Handle) -> bool {
@@ -427,12 +425,12 @@ impl TreeSink for ArcDom {
     }
 }
 
-impl Default for ArcDom {
-    fn default() -> ArcDom {
-        ArcDom {
+impl Default for RcDom {
+    fn default() -> RcDom {
+        RcDom {
             document: Node::new(NodeData::Document),
-            errors: vec![],
-            quirks_mode: tree_builder::NoQuirks,
+            errors: Default::default(),
+            quirks_mode: Cell::new(tree_builder::NoQuirks),
         }
     }
 }

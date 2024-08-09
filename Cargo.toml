@@ -1,6 +1,6 @@
 [package]
 name = "readability"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Hiroki Kumamoto <kumabook@live.jp>"]
 license = "MIT"
 homepage = "https://github.com/kumabook/readability"
@@ -12,14 +12,14 @@ categories = []
 [dependencies]
 regex = "1"
 url = "2"
-html5ever = "^0"
+html5ever = "0.28"
 lazy_static = "1"
 tendril = "0.4"
-markup5ever = "^0"
-xml5ever = "^0"
+markup5ever = "0.13"
+xml5ever = "0.19"
 
 [dependencies.reqwest]
-version = "^0"
+version = "0.12"
 optional = true
 features = ["blocking", "rustls-tls"]
 default-features = false

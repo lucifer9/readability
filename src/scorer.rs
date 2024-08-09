@@ -1,13 +1,13 @@
 use dom;
 use html5ever::tree_builder::{ElementFlags, NodeOrText, TreeSink};
 use html5ever::{LocalName, QualName};
-use markup5ever_arcdom::NodeData::{Comment, Doctype, Element, ProcessingInstruction, Text};
-use markup5ever_arcdom::{ArcDom, Handle, Node, NodeData};
+use markup5ever_rcdom::NodeData::{Comment, Doctype, Element, ProcessingInstruction, Text};
+use markup5ever_rcdom::{Handle, Node, NodeData, RcDom};
 use regex::Regex;
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::rc::Rc;
 use url::Url;
 
 pub static PUNCTUATIONS_REGEX: &str = r"([、。，．！？]|\.[^A-Za-z0-9]|,[^0-9]|!|\?)";
@@ -45,7 +45,7 @@ lazy_static! {
 }
 
 pub struct Candidate {
-    pub node: Arc<Node>,
+    pub node: Rc<Node>,
     pub score: Cell<f32>,
 }
 
@@ -83,7 +83,7 @@ pub fn get_link_density(handle: Handle) -> f32 {
         return 0.0;
     }
     let mut link_length = 0.0;
-    let mut links: Vec<Arc<Node>> = vec![];
+    let mut links: Vec<Rc<Node>> = vec![];
     dom::find_node(handle, "a", &mut links);
     for link in links.iter() {
         link_length += dom::text_len(link.clone()) as f32;
@@ -149,7 +149,7 @@ pub fn get_class_weight(handle: Handle) -> f32 {
     weight
 }
 
-pub fn preprocess(dom: &mut ArcDom, handle: Handle, title: &mut String) -> bool {
+pub fn preprocess(dom: &mut RcDom, handle: Handle, title: &mut String) -> bool {
     if let Element {
         ref name,
         ref attrs,
@@ -214,11 +214,11 @@ pub fn preprocess(dom: &mut ArcDom, handle: Handle, title: &mut String) -> bool 
 }
 
 pub fn find_candidates(
-    mut _dom: &mut ArcDom,
+    mut _dom: &mut RcDom,
     id: &Path,
     handle: Handle,
     candidates: &mut BTreeMap<String, Candidate>,
-    nodes: &mut BTreeMap<String, Arc<Node>>,
+    nodes: &mut BTreeMap<String, Rc<Node>>,
 ) {
     if let Some(id) = id.to_str().map(|id| id.to_string()) {
         nodes.insert(id, handle.clone());
@@ -283,7 +283,7 @@ pub fn find_candidates(
 fn find_or_create_candidate<'a>(
     id: &Path,
     candidates: &'a mut BTreeMap<String, Candidate>,
-    nodes: &mut BTreeMap<String, Arc<Node>>,
+    nodes: &mut BTreeMap<String, Rc<Node>>,
 ) -> Option<&'a Candidate> {
     if let Some(id) = id.to_str().map(|id| id.to_string()) {
         if let Some(node) = nodes.get(&id) {
@@ -303,7 +303,7 @@ fn find_or_create_candidate<'a>(
 }
 
 pub fn clean(
-    dom: &mut ArcDom,
+    dom: &mut RcDom,
     id: &Path,
     handle: Handle,
     url: &Url,
@@ -370,11 +370,11 @@ pub fn is_useless(id: &Path, handle: Handle, candidates: &BTreeMap<String, Candi
         return true;
     }
     let text_nodes_len = dom::text_children_count(handle.clone());
-    let mut p_nodes: Vec<Arc<Node>> = vec![];
-    let mut img_nodes: Vec<Arc<Node>> = vec![];
-    let mut li_nodes: Vec<Arc<Node>> = vec![];
-    let mut input_nodes: Vec<Arc<Node>> = vec![];
-    let mut embed_nodes: Vec<Arc<Node>> = vec![];
+    let mut p_nodes: Vec<Rc<Node>> = vec![];
+    let mut img_nodes: Vec<Rc<Node>> = vec![];
+    let mut li_nodes: Vec<Rc<Node>> = vec![];
+    let mut input_nodes: Vec<Rc<Node>> = vec![];
+    let mut embed_nodes: Vec<Rc<Node>> = vec![];
     dom::find_node(handle.clone(), "p", &mut p_nodes);
     dom::find_node(handle.clone(), "img", &mut img_nodes);
     dom::find_node(handle.clone(), "li", &mut li_nodes);
