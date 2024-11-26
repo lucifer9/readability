@@ -1,10 +1,10 @@
-use dom;
-use error::Error;
+use crate::dom;
+use crate::error::Error;
+use crate::markup5ever_rcdom::{RcDom, SerializableHandle};
+use crate::scorer;
 use html5ever::{parse_document, serialize};
-use markup5ever_rcdom::{RcDom, SerializableHandle};
 #[cfg(feature = "reqwest")]
 use reqwest;
-use scorer;
 use scorer::Candidate;
 use std::cell::Cell;
 use std::collections::BTreeMap;

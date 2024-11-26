@@ -1,8 +1,8 @@
-use dom;
+use crate::dom;
+use crate::markup5ever_rcdom::NodeData::{Comment, Doctype, Element, ProcessingInstruction, Text};
+use crate::markup5ever_rcdom::{Handle, Node, NodeData, RcDom};
 use html5ever::tree_builder::{ElementFlags, NodeOrText, TreeSink};
 use html5ever::{LocalName, QualName};
-use markup5ever_rcdom::NodeData::{Comment, Doctype, Element, ProcessingInstruction, Text};
-use markup5ever_rcdom::{Handle, Node, NodeData, RcDom};
 use regex::Regex;
 use std::cell::Cell;
 use std::collections::BTreeMap;
