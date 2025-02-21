@@ -313,7 +313,7 @@ pub fn clean(
     match &handle.data {
         NodeData::Document => (),
         Doctype { .. } => (),
-        Text { ref contents } => {
+        Text { contents } => {
             let s = contents.borrow();
             if s.trim().is_empty() {
                 useless = true
@@ -321,8 +321,8 @@ pub fn clean(
         }
         Comment { .. } => useless = true,
         Element {
-            ref name,
-            ref attrs,
+            name,
+            attrs,
             ..
         } => {
             let tag_name = name.local.as_ref();

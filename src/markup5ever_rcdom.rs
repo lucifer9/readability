@@ -169,7 +169,7 @@ fn append(new_parent: &Handle, child: Handle) {
 
 /// If the node has a parent, get it and this node's position in its children
 fn get_parent_and_index(target: &Handle) -> Option<(Handle, usize)> {
-    if let Some(weak) = target.parent.take() {
+    match target.parent.take() { Some(weak) => {
         let parent = weak.upgrade().expect("dangling weak pointer");
         target.parent.set(Some(weak));
         let i = match parent
@@ -183,9 +183,9 @@ fn get_parent_and_index(target: &Handle) -> Option<(Handle, usize)> {
             None => panic!("have parent but couldn't find in parent's children!"),
         };
         Some((parent, i))
-    } else {
+    } _ => {
         None
-    }
+    }}
 }
 
 fn append_to_existing_text(prev: &Handle, text: &str) -> bool {
@@ -236,19 +236,19 @@ impl TreeSink for RcDom {
     }
 
     fn get_template_contents(&self, target: &Handle) -> Handle {
-        if let NodeData::Element {
+        match target.data
+        { NodeData::Element {
             ref template_contents,
             ..
-        } = target.data
-        {
+        } => {
             template_contents
                 .borrow()
                 .as_ref()
                 .expect("not a template element!")
                 .clone()
-        } else {
+        } _ => {
             panic!("not a template element!")
-        }
+        }}
     }
 
     fn set_quirks_mode(&self, mode: QuirksMode) {
@@ -380,11 +380,11 @@ impl TreeSink for RcDom {
     }
 
     fn add_attrs_if_missing(&self, target: &Handle, attrs: Vec<Attribute>) {
-        let mut existing = if let NodeData::Element { ref attrs, .. } = target.data {
+        let mut existing = match target.data { NodeData::Element { ref attrs, .. } => {
             attrs.borrow_mut()
-        } else {
+        } _ => {
             panic!("not an element")
-        };
+        }};
 
         let existing_names = existing
             .iter()
@@ -415,15 +415,15 @@ impl TreeSink for RcDom {
     }
 
     fn is_mathml_annotation_xml_integration_point(&self, target: &Handle) -> bool {
-        if let NodeData::Element {
+        match target.data
+        { NodeData::Element {
             mathml_annotation_xml_integration_point,
             ..
-        } = target.data
-        {
+        } => {
             mathml_annotation_xml_integration_point
-        } else {
+        } _ => {
             panic!("not an element!")
-        }
+        }}
     }
 }
 
