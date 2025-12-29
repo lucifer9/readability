@@ -52,20 +52,24 @@ pub fn extract(input: RcDom, url: &Url) -> Result<Product, Error> {
         &mut candidates,
         &mut nodes,
     );
-    let mut id: &str = "/";
-    let mut top_candidate: &Candidate = &Candidate {
+    // Calculate final scores with link density penalty
+    for c in candidates.values() {
+        let score = c.score.get() * (1.0 - scorer::get_link_density(c.node.clone()));
+        c.score.set(score);
+    }
+
+    // Find the top candidate
+    let default_candidate = Candidate {
         node: handle,
         score: Cell::new(0.0),
     };
-    for (i, c) in candidates.iter() {
-        let score = c.score.get() * (1.0 - scorer::get_link_density(c.node.clone()));
-        c.score.set(score);
-        if score <= top_candidate.score.get() {
-            continue;
-        }
-        id = i;
-        top_candidate = c;
-    }
+    let (id, top_candidate) = candidates
+        .iter()
+        .max_by(|(_, a), (_, b)| {
+            a.score.get().partial_cmp(&b.score.get()).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(id, c)| (id.as_str(), c))
+        .unwrap_or(("/", &default_candidate));
     let mut bytes = vec![];
 
     let node = top_candidate.node.clone();

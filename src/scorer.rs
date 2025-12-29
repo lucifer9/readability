@@ -24,7 +24,7 @@ pub static NEGATIVE_CANDIDATES: &str = "combx|comment|com|contact|foot|footer|fo
      |scroll|shoutbox|sidebar|sponsor|shopping\
      |tags|tool|widget|form|textfield\
      |uiScale|hidden";
-static BLOCK_CHILD_TAGS: [&str; 10] = [
+static BLOCK_CHILD_TAGS: &[&str] = &[
     "a",
     "blockquote",
     "dl",
@@ -49,32 +49,23 @@ pub struct Candidate {
     pub score: Cell<f32>,
 }
 
-pub fn fix_img_path(handle: Handle, url: &Url) -> bool {
-    let src = dom::get_attr("src", handle.clone());
-    if src.is_none() {
+fn fix_relative_path(attr_name: &str, handle: Handle, url: &Url) -> bool {
+    let Some(s) = dom::get_attr(attr_name, handle.clone()) else {
         return false;
-    }
-    let s = src.unwrap();
-    if !s.starts_with("//") && !s.starts_with("http://") && !s.starts_with("https://") {
-        if let Ok(new_url) = url.join(&s) {
-            dom::set_attr("src", new_url.as_str(), handle)
+    };
+    if !s.starts_with("//") && !s.starts_with("http://") && !s.starts_with("https://")
+        && let Ok(new_url) = url.join(&s) {
+            dom::set_attr(attr_name, new_url.as_str(), handle);
         }
-    }
     true
 }
 
+pub fn fix_img_path(handle: Handle, url: &Url) -> bool {
+    fix_relative_path("src", handle, url)
+}
+
 pub fn fix_anchor_path(handle: Handle, url: &Url) -> bool {
-    let src = dom::get_attr("href", handle.clone());
-    if src.is_none() {
-        return false;
-    }
-    let s = src.unwrap();
-    if !s.starts_with("//") && !s.starts_with("http://") && !s.starts_with("https://") {
-        if let Ok(new_url) = url.join(&s) {
-            dom::set_attr("href", new_url.as_str(), handle)
-        }
-    }
-    true
+    fix_relative_path("href", handle, url)
 }
 
 pub fn get_link_density(handle: Handle) -> f32 {
@@ -100,7 +91,7 @@ pub fn is_candidate(handle: Handle) -> bool {
     match n {
         "p" => true,
         "div" | "article" | "center" | "section" => {
-            !dom::has_nodes(handle, &BLOCK_CHILD_TAGS.to_vec())
+            !dom::has_nodes(handle, BLOCK_CHILD_TAGS)
         }
         _ => false,
     }
@@ -163,11 +154,10 @@ pub fn preprocess(dom: &mut RcDom, handle: Handle, title: &mut String) -> bool {
             _ => (),
         }
         for name in ["id", "class"].iter() {
-            if let Some(val) = dom::attr(name, &attrs.borrow()) {
-                if tag_name != "body" && UNLIKELY.is_match(&val) && !LIKELY.is_match(&val) {
+            if let Some(val) = dom::attr(name, &attrs.borrow())
+                && tag_name != "body" && UNLIKELY.is_match(&val) && !LIKELY.is_match(&val) {
                     return true;
                 }
-            }
         }
     }
     let mut useless_nodes = vec![];
@@ -214,58 +204,61 @@ pub fn preprocess(dom: &mut RcDom, handle: Handle, title: &mut String) -> bool {
 }
 
 pub fn find_candidates(
-    mut _dom: &mut RcDom,
+    _dom: &mut RcDom,
     id: &Path,
     handle: Handle,
     candidates: &mut BTreeMap<String, Candidate>,
     nodes: &mut BTreeMap<String, Rc<Node>>,
 ) {
-    if let Some(id) = id.to_str().map(|id| id.to_string()) {
-        nodes.insert(id, handle.clone());
+    if let Some(id_str) = id.to_str().map(|s| s.to_string()) {
+        nodes.insert(id_str, handle.clone());
     }
 
     if is_candidate(handle.clone()) {
         let score = calc_content_score(handle.clone());
+
+        // Add score to parent candidate
         if let Some(c) = id
             .parent()
             .and_then(|pid| find_or_create_candidate(pid, candidates, nodes))
         {
-            c.score.set(c.score.get() + score)
+            c.score.set(c.score.get() + score);
         }
+
+        // Add half score to grandparent candidate
         if let Some(c) = id
             .parent()
             .and_then(|pid| pid.parent())
             .and_then(|gpid| find_or_create_candidate(gpid, candidates, nodes))
         {
-            c.score.set(c.score.get() + score / 2.0)
+            c.score.set(c.score.get() + score / 2.0);
         }
-    }
 
-    if is_candidate(handle.clone()) {
-        let score = calc_content_score(handle.clone());
+        // Add score to self if already a candidate
         if let Some(c) = id
             .to_str()
-            .map(|id| id.to_string())
-            .and_then(|id| candidates.get(&id))
+            .and_then(|id_str| candidates.get(id_str))
         {
-            c.score.set(c.score.get() + score)
+            c.score.set(c.score.get() + score);
         }
+
+        // Add score to parent if already a candidate
         if let Some(c) = id
             .parent()
             .and_then(|pid| pid.to_str())
-            .map(|id| id.to_string())
-            .and_then(|pid| candidates.get(&pid))
+            .and_then(|pid_str| candidates.get(pid_str))
         {
-            c.score.set(c.score.get() + score)
+            c.score.set(c.score.get() + score);
         }
+
+        // Add score to grandparent if already a candidate
         if let Some(c) = id
             .parent()
             .and_then(|p| p.parent())
-            .and_then(|pid| pid.to_str())
-            .map(|id| id.to_string())
-            .and_then(|pid| candidates.get(&pid))
+            .and_then(|gpid| gpid.to_str())
+            .and_then(|gpid_str| candidates.get(gpid_str))
         {
-            c.score.set(c.score.get() + score)
+            c.score.set(c.score.get() + score);
         }
     }
 
@@ -276,7 +269,7 @@ pub fn find_candidates(
             child.clone(),
             candidates,
             nodes,
-        )
+        );
     }
 }
 
@@ -285,8 +278,8 @@ fn find_or_create_candidate<'a>(
     candidates: &'a mut BTreeMap<String, Candidate>,
     nodes: &mut BTreeMap<String, Rc<Node>>,
 ) -> Option<&'a Candidate> {
-    if let Some(id) = id.to_str().map(|id| id.to_string()) {
-        if let Some(node) = nodes.get(&id) {
+    if let Some(id) = id.to_str().map(|id| id.to_string())
+        && let Some(node) = nodes.get(&id) {
             if candidates.get(&id).is_none() {
                 candidates.insert(
                     id.clone(),
@@ -298,7 +291,6 @@ fn find_or_create_candidate<'a>(
             }
             return candidates.get(&id);
         }
-    }
     None
 }
 

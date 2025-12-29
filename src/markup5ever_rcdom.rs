@@ -135,11 +135,9 @@ impl Drop for Node {
                 ref template_contents,
                 ..
             } = node.data
-            {
-                if let Some(template_contents) = template_contents.borrow_mut().take() {
+                && let Some(template_contents) = template_contents.borrow_mut().take() {
                     nodes.push(template_contents);
                 }
-            }
         }
     }
 }
@@ -260,10 +258,10 @@ impl TreeSink for RcDom {
     }
 
     fn elem_name<'a>(&self, target: &'a Handle) -> ExpandedName<'a> {
-        return match target.data {
+        match target.data {
             NodeData::Element { ref name, .. } => name.expanded(),
             _ => panic!("not an element!"),
-        };
+        }
     }
 
     fn create_element(&self, name: QualName, attrs: Vec<Attribute>, flags: ElementFlags) -> Handle {
@@ -292,13 +290,11 @@ impl TreeSink for RcDom {
 
     fn append(&self, parent: &Handle, child: NodeOrText<Handle>) {
         // Append to an existing Text node if we have one.
-        if let NodeOrText::AppendText(text) = &child {
-            if let Some(h) = parent.children.borrow().last() {
-                if append_to_existing_text(h, text) {
+        if let NodeOrText::AppendText(text) = &child
+            && let Some(h) = parent.children.borrow().last()
+                && append_to_existing_text(h, text) {
                     return;
                 }
-            }
-        }
 
         append(
             parent,

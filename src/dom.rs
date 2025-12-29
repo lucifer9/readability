@@ -39,14 +39,13 @@ pub fn set_attr(attr_name: &str, value: &str, handle: Handle) {
         if let Some(index) = attrs.iter().position(|attr| {
             let name = attr.name.local.as_ref();
             name == attr_name
-        }) {
-            if let Ok(value) = StrTendril::from_str(value) {
+        })
+            && let Ok(value) = StrTendril::from_str(value) {
                 attrs[index] = Attribute {
                     name: attrs[index].name.clone(),
                     value,
                 }
             }
-        }
     }
 }
 
@@ -61,14 +60,13 @@ pub fn clean_attr(attr_name: &str, attrs: &mut Vec<Attribute>) {
 
 pub fn is_empty(handle: Handle) -> bool {
     for child in handle.children.borrow().iter() {
-        let c = child.clone();
-        match c.data {
-            Text { ref contents } => {
-                if contents.borrow().trim().len() > 0 {
+        match &child.data {
+            Text { contents } => {
+                if !contents.borrow().trim().is_empty() {
                     return false;
                 }
             }
-            Element { ref name, .. } => {
+            Element { name, .. } => {
                 let tag_name = name.local.as_ref();
                 match tag_name.to_lowercase().as_ref() {
                     "li" | "dt" | "dd" | "p" | "div" => {
@@ -183,16 +181,13 @@ pub fn find_node(handle: Handle, tag_name: &str, nodes: &mut Vec<Rc<Node>>) {
     }
 }
 
-pub fn has_nodes(handle: Handle, tag_names: &Vec<&'static str>) -> bool {
+pub fn has_nodes(handle: Handle, tag_names: &[&str]) -> bool {
     for child in handle.children.borrow().iter() {
         let tag_name: &str = &get_tag_name(child.clone()).unwrap_or_default();
-        if tag_names.iter().any(|&n| n == tag_name) {
+        if tag_names.contains(&tag_name) {
             return true;
         }
-        if match child.clone().data {
-            Element { .. } => has_nodes(child.clone(), tag_names),
-            _ => false,
-        } {
+        if matches!(&child.data, Element { .. }) && has_nodes(child.clone(), tag_names) {
             return true;
         }
     }
